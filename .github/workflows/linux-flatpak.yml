@@ -8,6 +8,14 @@ on:
       tag:
         description: 'Release tag'
         required: false
+  push:
+    branches-ignore:
+      - 'dependabot/**'
+    paths:
+      - '.github/workflows/linux-flatpak.yml'
+      - 'dist/linux/flatpak/**'
+      - 'dist/linux/common/**'
+      - 'dist/linux/resources/**'
 
 jobs:
   get-version:
