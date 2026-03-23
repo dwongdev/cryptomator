@@ -71,6 +71,27 @@ jobs:
           manifest-path: org.cryptomator.Cryptomator.yaml
           cache-key: flatpak-builder-${{ github.sha }}
           arch: ${{ matrix.variant.arch }}
+      - name: Update maven dependencies
+        run: >
+          ( cd .flatpak-builder/build/cryptomator-1/.m2/repository/
+          && find * -type f \( -iname '*.jar' -o -iname '*.pom' \)
+          | grep -v 'javafx-*-linux-*.jar'
+          | natsort -p
+          | xargs -rI '{}' bash -c 'echo -e "$SOURCE_ENTRY_TEMPLATE"'
+          ) > maven-dependencies.yaml
+        env:
+          SOURCE_ENTRY_TEMPLATE: |-
+            - type: file
+              dest: .m2/repository/$(dirname {})
+              url: https://repo.maven.apache.org/maven2/{}
+              sha256: $(sha256sum {} | cut -c 1-64)
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        if: matrix.variant.arch == 'aarch64'
+        with:
+          archive: false
+          if-no-files-found: error
+          path: |
+            maven-dependencies.yaml
 
   tarball:
     name: Determines tarball url and compute checksum
