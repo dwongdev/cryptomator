@@ -124,10 +124,28 @@ jobs:
             maven-dependencies.yaml
             javafx-maven-dependencies-${{ matrix.variant.arch }}.yaml
 
+  verify-maven-sources:
+    name: Verify maven sources
+    runs-on: ubuntu-latest
+    needs: [build-flatpak]
+    steps:
+      - name: Download updated maven aarch64 dependencies
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: maven-sources-aarch64
+          path: mvn-src-aarch64
+      - name: Download updated maven x86_64 dependencies
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: maven-sources-x86_64
+          path: mvn-src-x64
+      - name: Verify arch independent maven dependencies
+        run: cmp --silent mvn-src-aarch64/maven-dependencies.yaml mvn-src-x64/maven-dependencies.yaml
+
   create-pr:
     name: Create PR for flathub
     runs-on: ubuntu-latest
-    needs: [get-version, build-flatpak]
+    needs: [get-version, verify-maven-sources]
     if:  github.event_name == 'workflow_dispatch' && inputs.create-pr || github.event_name == 'release' && needs.get-version.outputs.versionType == 'stable'
     env:
       TARBALL_URL: 'https://github.com/cryptomator/cryptomator/archive/refs/tags/${{ needs.get-version.outputs.semVerStr || github.event.release.tag_name }}.tar.gz'
