@@ -59,6 +59,7 @@ jobs:
         working-directory: cryptomator
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Prepare build files
+        # using envsubst instead of yq to keep linebreaks
         run: |
           cp -r -f cryptomator/dist/linux/flatpak/* .
           envsubst '$FLATPAK_VERSION $FLATPAK_REVISION $CRYPTOMATOR_SOURCE' < org.cryptomator.Cryptomator.TEMPLATE.yaml > org.cryptomator.Cryptomator.yaml
