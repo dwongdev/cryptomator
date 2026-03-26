@@ -5,8 +5,8 @@ on:
     types: [published]
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Release tag'
+      src-tag:
+        description: 'Source or Release tag'
         required: false
       create-pr:
         description: 'Create Flathub PR'
@@ -27,7 +27,7 @@ jobs:
   get-version:
     uses: ./.github/workflows/get-version.yml
     with:
-      version: ${{ inputs.tag }}
+      version: ${{ inputs.src-tag }}
 
   build-flatpak:
     name: "Build flatpak"
@@ -53,8 +53,11 @@ jobs:
           submodules: true
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          path: build-scripts
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
           path: cryptomator
-          ref: ${{ inputs.tag || github.sha }}
+          ref: ${{ inputs.src-tag || github.sha }}
       - name: Resolve checked-out source SHA
         id: cryptomator-source
         working-directory: cryptomator
@@ -62,7 +65,7 @@ jobs:
       - name: Prepare build files
         # using envsubst instead of yq to keep linebreaks
         run: |
-          cp -r -f cryptomator/dist/linux/flatpak/* .
+          cp -r -f build-scripts/dist/linux/flatpak/* .
           envsubst '$FLATPAK_VERSION $FLATPAK_REVISION $CRYPTOMATOR_SOURCE' < org.cryptomator.Cryptomator.TEMPLATE.yaml > org.cryptomator.Cryptomator.yaml
         env:
           FLATPAK_VERSION: ${{ needs.get-version.outputs.semVerNum }}
@@ -157,12 +160,21 @@ jobs:
     name: Create PR for flathub
     runs-on: ubuntu-latest
     needs: [get-version, verify-maven-sources]
-    if:  github.event_name == 'workflow_dispatch' && inputs.create-pr || github.event_name == 'release' && needs.get-version.outputs.versionType == 'stable'
+    if: (github.event_name == 'workflow_dispatch' && inputs.create-pr ) || (github.event_name == 'release' && needs.get-version.outputs.versionType == 'stable')
     permissions:
       contents: write
     env:
-      TARBALL_URL: 'https://github.com/cryptomator/cryptomator/archive/refs/tags/${{ needs.get-version.outputs.semVerStr || github.event.release.tag_name }}.tar.gz'
+      TARBALL_URL: 'https://github.com/cryptomator/cryptomator/archive/refs/tags/${{ github.event.release.tag_name || inputs.src-tag }}.tar.gz'
     steps:
+      - name: Check that input "src-tag" is actually a tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ -z "$SRC_TAG" ]; then
+            echo '::error::Input "src-tag" must be set to create a Flathub PR'
+            exit 1
+          fi
+        env:
+          SRC_TAG: ${{ inputs.src-tag }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: flathub/org.cryptomator.Cryptomator
@@ -174,7 +186,6 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           path: cryptomator
-          ref: ${{ inputs.tag || github.sha }}
       - name: Download source tarball and compute checksum
         id: sha512
         run: |
