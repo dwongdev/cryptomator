@@ -46,22 +46,23 @@ jobs:
     runs-on: ${{ matrix.variant.runner }}
     permissions:
       contents: read
+    env:
+      SRC_GIT_SHA: ${{ inputs.src-tag || github.sha}}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: flathub/org.cryptomator.Cryptomator
           submodules: true
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout build script
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           path: build-scripts
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Checkout app source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           path: cryptomator
-          ref: ${{ inputs.src-tag || github.sha }}
-      - name: Resolve checked-out source SHA
-        id: cryptomator-source
-        working-directory: cryptomator
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          ref: ${{ env.SRC_GIT_SHA }}
+          fetch-depth: 0
       - name: Prepare build files
         # using envsubst instead of yq to keep linebreaks
         run: |
@@ -73,7 +74,7 @@ jobs:
           CRYPTOMATOR_SOURCE: |-
             type: git
                     path: cryptomator
-                    commit: ${{ steps.cryptomator-source.outputs.sha }}
+                    commit: ${{ env.SRC_GIT_SHA }}
       - name: Copy build script for upload
         run: cp org.cryptomator.Cryptomator.yaml org.cryptomator.Cryptomator.${{matrix.variant.arch}}.yaml
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -86,7 +87,7 @@ jobs:
         with:
           bundle: cryptomator.flatpak
           manifest-path: org.cryptomator.Cryptomator.yaml
-          cache-key: flatpak-builder-${{ steps.cryptomator-source.outputs.sha }}
+          cache-key: flatpak-builder-${{ env.SRC_GIT_SHA }}
           arch: ${{ matrix.variant.arch }}
           keep-build-dirs: true
       - name: Collect maven dependencies
