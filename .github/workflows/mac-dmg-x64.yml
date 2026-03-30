@@ -268,7 +268,7 @@ jobs:
           xcode-path: '/Applications/Xcode_16.app'
       - id: sha256sum
         run: |
-          read -ra CMD_OUTPUT < <(sha -a256 Cryptomator-*.dmg)
+          read -ra CMD_OUTPUT < <(shasum -a256 Cryptomator-*.dmg)
           echo "value=${CMD_OUTPUT[0]}" >> $GITHUB_OUTPUT
       - name: Add possible alpha/beta tags to installer name
         run: mv Cryptomator-*.dmg Cryptomator-${{ needs.get-version.outputs.semVerStr }}-${{ matrix.output-suffix }}.dmg
