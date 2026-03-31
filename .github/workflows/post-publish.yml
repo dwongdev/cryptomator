@@ -30,7 +30,7 @@ jobs:
     name: Get release asset URLs
     runs-on: ubuntu-latest
     outputs:
-      is-windows-release: ${{ steps.urls.outputs.urls-present }})
+      is-windows-release: ${{ steps.urls.outputs.urls-present }}
       msi-url: ${{ steps.urls.outputs.msi }}
       exe-url: ${{ steps.urls.outputs.exe }}
     steps:
@@ -39,7 +39,7 @@ jobs:
         run: |
           MSI_URL=$(jq -r '[.[] | select(.name | endswith("-x64.msi"))][0].browser_download_url // "null"' <<< "$RELEASE_ASSETS")
           EXE_URL=$(jq -r '[.[] | select(.name | endswith("-x64.exe"))][0].browser_download_url // "null"' <<< "$RELEASE_ASSETS")
-          if [[ "$MSI_URL" == "null" || -z "$MSI_URL" || "$EXE_URL" == "null" || -z "EXE_URL" ]]; then
+          if [[ "$MSI_URL" == "null" || -z "$MSI_URL" || "$EXE_URL" == "null" || -z "$EXE_URL" ]]; then
             echo "urls-present=false" >> $GITHUB_OUTPUT
           else
             echo "urls-present=true" >> $GITHUB_OUTPUT
