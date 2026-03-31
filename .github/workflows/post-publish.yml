@@ -30,6 +30,7 @@ jobs:
     name: Get release asset URLs
     runs-on: ubuntu-latest
     outputs:
+      is-windows-release: ${{ steps.urls.outputs.urls-present }})
       msi-url: ${{ steps.urls.outputs.msi }}
       exe-url: ${{ steps.urls.outputs.exe }}
     steps:
@@ -38,14 +39,19 @@ jobs:
         run: |
           MSI_URL=$(jq -r '[.[] | select(.name | endswith("-x64.msi"))][0].browser_download_url // "null"' <<< "$RELEASE_ASSETS")
           EXE_URL=$(jq -r '[.[] | select(.name | endswith("-x64.exe"))][0].browser_download_url // "null"' <<< "$RELEASE_ASSETS")
-          echo "msi=${MSI_URL}" >> $GITHUB_OUTPUT
-          echo "exe=${EXE_URL}" >> $GITHUB_OUTPUT
+          if [[ "$MSI_URL" == "null" || -z "$MSI_URL" || "$EXE_URL" == "null" || -z "EXE_URL" ]]; then
+            echo "urls-present=false" >> $GITHUB_OUTPUT
+          else
+            echo "urls-present=true" >> $GITHUB_OUTPUT
+            echo "msi=${MSI_URL}" >> $GITHUB_OUTPUT
+            echo "exe=${EXE_URL}" >> $GITHUB_OUTPUT
+          fi
         env:
           RELEASE_ASSETS: ${{ toJson(github.event.release.assets) }}
 
   allowlist-msi-x64:
     needs: [get-asset-urls]
-    if: needs.get-asset-urls.outputs.msi-url != 'null'
+    if: needs.get-asset-urls.outputs.is-windows-release == 'true'
     uses: ./.github/workflows/av-whitelist.yml
     with:
       url: ${{ needs.get-asset-urls.outputs.msi-url }}
@@ -53,7 +59,7 @@ jobs:
 
   allowlist-exe-x64:
     needs: [get-asset-urls, allowlist-msi-x64]
-    if: needs.get-asset-urls.outputs.exe-url != 'null'
+    if: needs.get-asset-urls.outputs.is-windows-release == 'true'
     uses: ./.github/workflows/av-whitelist.yml
     with:
       url: ${{ needs.get-asset-urls.outputs.exe-url }}
@@ -61,7 +67,7 @@ jobs:
 
   notify-winget:
     name: Notify for winget-release
-    if: needs.get-version.outputs.versionType == 'stable'
+    if: needs.get-asset-urls.outputs.is-windows-release == 'true' && needs.get-version.outputs.versionType == 'stable'
     needs: [get-version, get-asset-urls]
     runs-on: ubuntu-latest
     steps:
@@ -92,9 +98,9 @@ jobs:
           client-payload: '{ "version": "${{needs.get-version.outputs.semVerStr}}", "release": ${{ toJson(github.event.release.assets) }} }'
 
   trigger-docs-update:
-    needs: [get-version]
+    needs: [get-version, get-asset-urls]
     runs-on: ubuntu-latest
-    if: needs.get-version.outputs.versionType == 'stable'
+    if: needs.get-asset-urls.outputs.is-windows-release == 'true' && needs.get-version.outputs.versionType == 'stable'
     steps:
       - name: Start docs update workflow
         uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
