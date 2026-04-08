@@ -25,6 +25,18 @@ jobs:
           SLACK_MESSAGE: "Ready to <https://github.com/${{ github.repository }}/actions/workflows/debian.yml|build deb Package>."
           SLACK_FOOTER: false
           MSG_MINIMAL: true
+      - name: Notify about latest-version update
+        uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_CRYPTOMATOR_DESKTOP }}
+          SLACK_USERNAME: 'Cryptobot'
+          SLACK_ICON: ''
+          SLACK_ICON_EMOJI: ':bot:'
+          SLACK_CHANNEL: 'cryptomator-desktop'
+          SLACK_TITLE: "Requiring version check source update for ${{ github.event.repository.name }} ${{ github.event.release.tag_name }}."
+          SLACK_MESSAGE: 'Check S3 bucket for <https://static.cryptomator.org/desktop/latest-version.json|latest-version.json>.'
+          SLACK_FOOTER: ''
+          MSG_MINIMAL: true
 
   get-asset-urls:
     name: Get release asset URLs
@@ -109,43 +121,4 @@ jobs:
           token: ${{ secrets.CRYPTOBOT_WORKFLOW_DISPATCH_TOKEN }}
           repository: cryptomator/docs
           client-payload: '{ "version": "${{needs.get-version.outputs.semVerStr}}", "release": ${{ toJson(github.event.release.assets) }} }'
-
-  update-latest-version:
-    needs: [get-version]
-    runs-on: ubuntu-latest
-    if: needs.get-version.outputs.versionType == 'stable'
-    steps:
-      - name: Download
-        run: >
-          curl --silent --fail-with-body --proto "=https"
-          -L -H "Accept: application/json"
-          https://static.cryptomator.org/desktop/latest-version.json
-          --output latest-version.json
-      - name: Update
-        run: |
-          update_entry() {
-            local os="$1"
-            local file_extension="$2"
-
-            local url=$(jq -r --arg file_extension "$file_extension" '[.[] | select(.name | endswith($file_extension))][0].browser_download_url // "null"' <<< "$RELEASE_ASSETS")
-            if [[ "$url" != "null" && -n "$url" ]]; then
-              jq -r --arg os_key "$os" '.[$os_key] = env.NEW_VERSION' latest-version.json > INPUT.tmp
-              mv INPUT.tmp latest-version.json
-            fi
-          }
-
-          update_entry "win" ".msi"
-          update_entry "mac" ".dmg"
-          update_entry "linux" ".AppImage"
-        env:
-          RELEASE_ASSETS: ${{ toJson(github.event.release.assets) }}
-          NEW_VERSION: ${{ needs.get-version.outputs.semVerStr }}
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.AWS_REGION || 'nl-ams' }}
-      - name: Upload
-        run: aws s3 cp latest-version.json s3://static.cryptomator.org/desktop/latest-version.json --endpoint-url https://s3.nl-ams.scw.cloud/
 
