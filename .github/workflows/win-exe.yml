@@ -349,10 +349,10 @@ jobs:
         shell: pwsh
       - name: Download WinFsp
         run: |
-          curl --silent --fail-with-body --proto "=https" -L ${{ env.WINFSP_MSI }} --output $env:WINFSP_PATH
-          $computedHash = (Get-FileHash -Path $env:WINFSP_PATH -Algorithm SHA256).Hash.ToLower()
-          if ($computedHash -ne "${{ env.WINFSP_MSI_HASH }}") {
-            throw "Checksum mismatch for $env:WINFSP_PATH (expected ${{ env.WINFSP_MSI_HASH }}, got $computedHash)."
+          curl --silent --fail-with-body --proto "=https" -L "$env:WINFSP_MSI" --output $env:WINFSP_PATH
+          $computedHash = (Get-FileHash -Path "$env:WINFSP_PATH" -Algorithm SHA256).Hash.ToLower()
+          if ($computedHash -ne "$env:WINFSP_MSI_HASH") {
+            throw "Checksum mismatch for ${env:WINFSP_PATH} (expected ${env:WINFSP_MSI_HASH}, got $computedHash)."
           }
         env:
           WINFSP_PATH: 'dist/win/bundle/resources/winfsp.msi'
