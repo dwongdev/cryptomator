@@ -409,6 +409,7 @@ jobs:
           client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
       - name: Reattach signed burn engine to installer
         if: inputs.sign || github.event_name == 'schedule'
+        shell: pwsh
         run: |
           Move-Item -Path installer/Cryptomator-Installer.exe -Destination tmp/Cryptomator-Installer.exe
           wix burn reattach tmp/Cryptomator-Installer.exe -engine tmp/engine.exe -o installer/Cryptomator-Installer.exe
