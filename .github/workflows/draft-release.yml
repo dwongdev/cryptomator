@@ -1,4 +1,4 @@
-name: Create a Cryptomator Release
+name: Draft a Cryptomator Release
 
 on:
   push:
