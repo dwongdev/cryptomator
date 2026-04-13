@@ -13,19 +13,38 @@ on:
     - cron: '0 20 20 * *'
   workflow_call:
     inputs:
-      is-release:
-        description: "Workflow is called by a release"
+      semVerNum:
+        type: string
+        description: 'The Major.Minor.Patch part of the version'
+        required: true
+      revisionNum:
+        type: string
+        description: 'The revision number'
+        required: true
+      semVerSuffix:
+        type: string
+        description: 'The suffix of the version, including dash'
+        required: true
+      notarize:
+        description: 'Notarize'
+        default: true
         type: boolean
-        default: false
     outputs:
       sha256-dmg:
         description: "SHA256 sum of the x64 dmg"
         value: ${{ jobs.build.outputs.sha256sum}}
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version'
+      semVerNum:
+        description: 'The Major.Minor.Patch part of the version'
         required: false
+      revisionNum:
+        description: 'The revision number'
+        required: false
+      semVerSuffix:
+        description: 'The suffix of the version, including dash'
+        required: false
+        default: '-SNAPSHOT'
       notarize:
         description: 'Notarize'
         required: true
@@ -35,17 +54,15 @@ on:
 env:
   JAVA_DIST: 'temurin'
   JAVA_VERSION: '25.0.2+10.0.LTS'
+  VERSION_NUM: ${{ inputs.semVerNum || '99.99.99'}}
+  REVISION_NUM: ${{ inputs.revisionNum || '0' }}
+  VERSION_SUFFIX: ${{ inputs.semVerSuffix || ''}}
+
 
 jobs:
-  get-version:
-    uses: ./.github/workflows/get-version.yml
-    with:
-      version: ${{ inputs.version }}
-
   build:
     name: Build Cryptomator.app for ${{ matrix.output-suffix }}
     runs-on: ${{ matrix.os }}
-    needs: [get-version]
     outputs:
       sha256sum: ${{ steps.sha256sum.outputs.value }}
     strategy:
@@ -89,7 +106,7 @@ jobs:
             exit 1
           fi
       - name: Set version
-        run : mvn versions:set -DnewVersion=${{ needs.get-version.outputs.semVerStr }}
+        run : mvn versions:set -DnewVersion="${VERSION_NUM}${VERSION_SUFFIX}"
       - name: Run maven
         run: mvn -B clean package -Pmac -DskipTests
       - name: Patch target dir
@@ -130,7 +147,7 @@ jobs:
           --name Cryptomator
           --vendor "Skymatic GmbH"
           --copyright "(C) 2016 - 2025 Skymatic GmbH"
-          --app-version "${{ needs.get-version.outputs.semVerNum }}"
+          --app-version "${VERSION_NUM}"
           --java-options "--enable-preview"
           --java-options "--enable-native-access=javafx.graphics,org.cryptomator.jfuse.mac"
           --java-options "-Xss5m"
@@ -139,7 +156,7 @@ jobs:
           --java-options "-Djava.net.useSystemProxies=true"
           --java-options "-Dapple.awt.enableTemplateImages=true"
           --java-options "-Dsun.java2d.metal=true"
-          --java-options "-Dcryptomator.appVersion=\"${{ needs.get-version.outputs.semVerStr }}\""
+          --java-options "-Dcryptomator.appVersion=\"${VERSION_NUM}${VERSION_SUFFIX}\""
           --java-options "-Dcryptomator.adminConfigPath=\"/Library/Application Support/Cryptomator/config.properties\""
           --java-options "-Dcryptomator.logDir=\"@{userhome}/Library/Logs/Cryptomator\""
           --java-options "-Dcryptomator.settingsPath=\"@{userhome}/Library/Application Support/Cryptomator/settings.json\""
@@ -149,7 +166,7 @@ jobs:
           --java-options "-Dcryptomator.mountPointsDir=\"@{userhome}/Library/Application Support/Cryptomator/mnt\""
           --java-options "-Dcryptomator.showTrayIcon=true"
           --java-options "-Dcryptomator.updateMechanism=org.cryptomator.macos.update.DmgUpdateMechanism"
-          --java-options "-Dcryptomator.buildNumber=\"dmg-${{ needs.get-version.outputs.revNum }}\""
+          --java-options "-Dcryptomator.buildNumber=\"dmg-${REVISION_NUM}\""
           --java-options "-Dcryptomator.hub.enableTrustOnFirstUse=true"
           --mac-package-identifier org.cryptomator
           --resource-dir dist/mac/resources
@@ -158,12 +175,10 @@ jobs:
           mv appdir/Cryptomator.app Cryptomator.app
           mv dist/mac/resources/Cryptomator-Vault.icns Cryptomator.app/Contents/Resources/
           cp dist/mac/resources/Assets.car Cryptomator.app/Contents/Resources/
-          sed -i '' "s|###BUNDLE_SHORT_VERSION_STRING###|${VERSION_NO}|g" Cryptomator.app/Contents/Info.plist
-          sed -i '' "s|###BUNDLE_VERSION###|${REVISION_NO}|g" Cryptomator.app/Contents/Info.plist
+          sed -i '' "s|###BUNDLE_SHORT_VERSION_STRING###|${VERSION_NUM}|g" Cryptomator.app/Contents/Info.plist
+          sed -i '' "s|###BUNDLE_VERSION###|${REVISION_NUM}|g" Cryptomator.app/Contents/Info.plist
           echo -n "$PROVISIONING_PROFILE_BASE64" | base64 --decode --output Cryptomator.app/Contents/embedded.provisionprofile
         env:
-          VERSION_NO: ${{ needs.get-version.outputs.semVerNum }}
-          REVISION_NO: ${{ needs.get-version.outputs.revNum }}
           PROVISIONING_PROFILE_BASE64: ${{ secrets.MACOS_PROVISIONING_PROFILE_BASE64 }}
       - name: Generate license for dmg
         run: >
@@ -252,16 +267,14 @@ jobs:
           --eula "dist/mac/dmg/resources/license.rtf"
           --icon ".background" 128 758
           --icon ".VolumeIcon.icns" 512 758
-          Cryptomator-${VERSION_NO}-${{ matrix.output-suffix }}.dmg dmg
-        env:
-          VERSION_NO: ${{ needs.get-version.outputs.semVerNum }}
+          Cryptomator-${VERSION_NUM}-${{ matrix.output-suffix }}.dmg dmg
       - name: Codesign .dmg
         run: |
           codesign -s ${CODESIGN_IDENTITY} --timestamp Cryptomator-*.dmg
         env:
           CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
       - name: Notarize .dmg
-        if:  inputs.notarize || github.event_name == 'workflow_call' && inputs.is-release || github.event_name == 'schedule'
+        if:  inputs.notarize || github.event_name == 'schedule'
         uses: cocoalibs/xcode-notarization-action@5cf433d494b6fa26504b574c591f4dd120388846 # v1.0.3
         with:
           app-path: 'Cryptomator-*.dmg'
@@ -274,7 +287,7 @@ jobs:
           read -ra CMD_OUTPUT < <(shasum -a256 Cryptomator-*.dmg)
           echo "value=${CMD_OUTPUT[0]}" >> $GITHUB_OUTPUT
       - name: Add possible alpha/beta tags to installer name
-        run: mv Cryptomator-*.dmg Cryptomator-${{ needs.get-version.outputs.semVerStr }}-${{ matrix.output-suffix }}.dmg
+        run: mv Cryptomator-*.dmg "Cryptomator-${VERSION_NUM}${VERSION_SUFFIX}-${{ matrix.output-suffix }}.dmg"
       - name: Create detached GPG signature with key 615D449FE6E6A235
         run: |
           echo "${GPG_PRIVATE_KEY}" | gpg --batch --quiet --import
@@ -295,7 +308,7 @@ jobs:
             Cryptomator-*.asc
           if-no-files-found: error
       - name: Publish dmg on GitHub Releases
-        if: github.ref_type == 'tag' && inputs.is-release
+        if: github.event_name == 'workflow_call'
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
         with:
           draft: true

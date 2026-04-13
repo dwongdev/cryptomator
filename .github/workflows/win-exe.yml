@@ -5,10 +5,22 @@ on:
     - cron: '0 19 20 * *'
   workflow_call:
     inputs:
-      is-release:
-        description: "Workflow is called by a release"
+      semVerNum:
+        type: string
+        description: 'The Major.Minor.Patch part of the version'
+        required: true
+      revisionNum:
+        type: string
+        description: 'The revision number'
+        required: true
+      semVerSuffix:
+        type: string
+        description: 'The suffix of the version, including dash'
+        required: true
+      sign:
+        description: 'Sign binaries'
+        default: true
         type: boolean
-        default: false
     outputs:
       sha256-msi:
         description: "SHA256 sum of the x64 msi"
@@ -18,9 +30,16 @@ on:
         value: ${{ jobs.build-exe.outputs.sha256sum}}
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version'
+      semVerNum:
+        description: 'The Major.Minor.Patch part of the version'
         required: false
+      revisionNum:
+        description: 'The revision number'
+        required: false
+      semVerSuffix:
+        description: 'The suffix of the version, including dash'
+        required: false
+        default: '-SNAPSHOT'
       sign:
         description: 'Sign binaries'
         required: false
@@ -35,6 +54,9 @@ on:
 
 
 env:
+  VERSION_NUM: ${{ inputs.semVerNum || '99.99.99'}}
+  REVISION_NUM: ${{ inputs.revisionNum || '0' }}
+  VERSION_SUFFIX: ${{ inputs.semVerSuffix || ''}}
   OPENJFX_JMODS_AMD64: 'https://download2.gluonhq.com/openjfx/25.0.2/openjfx-25.0.2_windows-x64_bin-jmods.zip'
   OPENJFX_JMODS_AMD64_HASH: '33d878dfac85590c4d77c518ed413e512d34a8479d90132b230a7ddd173576b3'
   WINFSP_MSI: 'https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi'
@@ -47,15 +69,9 @@ defaults:
     shell: bash
 
 jobs:
-  get-version:
-    uses: ./.github/workflows/get-version.yml
-    with:
-      version: ${{ inputs.version }}
-
   build-msi:
     name: Build .msi Installer
     runs-on: ${{ matrix.os }}
-    needs: [ get-version ]
     outputs:
       sha256sum: ${{ steps.sha256sum.outputs.value }}
     strategy:
@@ -109,7 +125,7 @@ jobs:
             exit 1
           fi
       - name: Set version
-        run: mvn versions:set -DnewVersion=${{ needs.get-version.outputs.semVerStr }}
+        run: mvn versions:set -DnewVersion="${VERSION_NUM}${VERSION_SUFFIX}"
       - name: Run maven
         run: mvn -B clean package -Pwin -DskipTests
       - name: Patch target dir
@@ -150,12 +166,12 @@ jobs:
           --name Cryptomator
           --vendor "Skymatic GmbH"
           --copyright "(C) 2016 - 2025 Skymatic GmbH"
-          --app-version "${{ needs.get-version.outputs.semVerNum }}.${{ needs.get-version.outputs.revNum }}"
+          --app-version "${VERSION_NUM}.${REVISION_NUM}"
           --java-options "--enable-preview"
           --java-options "--enable-native-access=javafx.graphics,org.cryptomator.jfuse.win,org.cryptomator.integrations.win"
           --java-options "-Xss5m"
           --java-options "-Xmx256m"
-          --java-options "-Dcryptomator.appVersion=\"${{ needs.get-version.outputs.semVerStr }}\""
+          --java-options "-Dcryptomator.appVersion=\"${VERSION_NUM}${VERSION_SUFFIX}\""
           --java-options "-Dfile.encoding=\"utf-8\""
           --java-options "-Djava.net.useSystemProxies=true"
           --java-options "-Dcryptomator.adminConfigPath=\"C:/ProgramData/Cryptomator/config.properties\""
@@ -166,7 +182,7 @@ jobs:
           --java-options "-Dcryptomator.mountPointsDir=\"@{userhome}/Cryptomator\""
           --java-options "-Dcryptomator.loopbackAlias=\"cryptomator-vault\""
           --java-options "-Dcryptomator.showTrayIcon=true"
-          --java-options "-Dcryptomator.buildNumber=\"msi-${{ needs.get-version.outputs.revNum }}\""
+          --java-options "-Dcryptomator.buildNumber=\"msi-${REVISION_NUM}\""
           --java-options "-Dcryptomator.integrationsWin.autoStartShellLinkName=\"Cryptomator\""
           --java-options "-Dcryptomator.integrationsWin.keychainPaths=\"@{appdata}/Cryptomator/keychain.json;@{userhome}/AppData/Roaming/Cryptomator/keychain.json\""
           --java-options "-Dcryptomator.integrationsWin.windowsHelloKeychainPaths=\"@{appdata}/Cryptomator/windowsHelloKeychain.json\""
@@ -208,7 +224,7 @@ jobs:
           & $env:JAVA_HOME\bin\jmod.exe extract --dir jpackage-jmod "${env:JAVA_HOME}\jmods\jdk.jpackage.jmod"
           Get-ChildItem -Recurse -Path "jpackage-jmod" -File wixhelper.dll | Select-Object -Last 1 | Copy-Item -Destination "appdir"
       - name: Sign DLLs with Azure Trusted Signing
-        if: inputs.sign || inputs.is-release || github.event_name == 'schedule'
+        if: inputs.sign || github.event_name == 'schedule'
         uses: ./.github/actions/win-sign-action
         with:
           base-dir: ${{ github.workspace }}\appdir
@@ -253,7 +269,7 @@ jobs:
           --name Cryptomator
           --vendor "Skymatic GmbH"
           --copyright "(C) 2016 - 2025 Skymatic GmbH"
-          --app-version "${{ needs.get-version.outputs.semVerNum }}.${{ needs.get-version.outputs.revNum}}"
+          --app-version "${VERSION_NUM}.${REVISION_NUM}"
           --win-menu
           --win-dir-chooser
           --win-shortcut-prompt
@@ -266,7 +282,7 @@ jobs:
           JP_WIXWIZARD_RESOURCES: ${{ github.workspace }}/dist/win/resources # requires abs path, used in resources/main.wxs
           JP_WIXHELPER_DIR: ${{ github.workspace }}\appdir
       - name: Sign MSI with Azure Trusted Signing
-        if: inputs.sign || inputs.is-release || github.event_name == 'schedule'
+        if: inputs.sign || github.event_name == 'schedule'
         uses: ./.github/actions/win-sign-action
         with:
           base-dir: ${{ github.workspace }}\installer
@@ -280,7 +296,7 @@ jobs:
           read -ra CMD_OUTPUT < <(sha256sum installer/Cryptomator-*.msi)
           echo "value=${CMD_OUTPUT[0]}" >> $GITHUB_OUTPUT
       - name: Add possible alpha/beta tags and architecture to installer name
-        run: mv installer/Cryptomator-*.msi Cryptomator-${{ needs.get-version.outputs.semVerStr }}-${{ matrix.arch }}.msi
+        run: mv installer/Cryptomator-*.msi "Cryptomator-${VERSION_NUM}${VERSION_SUFFIX}-${{ matrix.arch }}.msi"
       - name: Create detached GPG signature with key 615D449FE6E6A235
         run: |
           echo "${GPG_PRIVATE_KEY}" | gpg --batch --quiet --import
@@ -300,7 +316,7 @@ jobs:
   build-exe:
     name: Build .exe installer
     runs-on: ${{ matrix.os }}
-    needs: [ get-version, build-msi ]
+    needs: [ build-msi ]
     outputs:
       sha256sum: ${{ steps.sha256sum.outputs.value }}
     strategy:
@@ -366,7 +382,7 @@ jobs:
         run: >
           wix build
           -define BundleName="Cryptomator"
-          -define BundleVersion="${{ needs.get-version.outputs.semVerNum }}.${{ needs.get-version.outputs.revNum}}"
+          -define BundleVersion="${VERSION_NUM}.${REVISION_NUM}"
           -define BundleVendor="Skymatic GmbH"
           -define BundleCopyright="(C) 2016 - 2025 Skymatic GmbH"
           -define AboutUrl="https://cryptomator.org"
@@ -377,11 +393,11 @@ jobs:
           ./bundle/bundleWithWinfsp.wxs
           -out "../../installer/Cryptomator-Installer.exe"
       - name: Detach burn engine in preparation to sign
-        if: inputs.sign || inputs.is-release || github.event_name == 'schedule'
+        if: inputs.sign || github.event_name == 'schedule'
         run: >
           wix burn detach installer/Cryptomator-Installer.exe -engine tmp/engine.exe
       - name: Sign WiX burn engine with Azure Trusted Signing
-        if: inputs.sign || inputs.is-release || github.event_name == 'schedule'
+        if: inputs.sign || github.event_name == 'schedule'
         uses: ./.github/actions/win-sign-action
         with:
           base-dir: ${{ github.workspace }}\tmp
@@ -392,12 +408,12 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
       - name: Reattach signed burn engine to installer
-        if: inputs.sign || inputs.is-release || github.event_name == 'schedule'
+        if: inputs.sign || github.event_name == 'schedule'
         run: |
           Move-Item -Path installer/Cryptomator-Installer.exe -Destination tmp/Cryptomator-Installer.exe
           wix burn reattach tmp/Cryptomator-Installer.exe -engine tmp/engine.exe -o installer/Cryptomator-Installer.exe
       - name: Sign EXE installer with Azure Trusted Signing
-        if: inputs.sign || inputs.is-release || github.event_name == 'schedule'
+        if: inputs.sign || github.event_name == 'schedule'
         uses: ./.github/actions/win-sign-action
         with:
           base-dir: ${{ github.workspace }}\installer
@@ -412,7 +428,7 @@ jobs:
           read -ra CMD_OUTPUT < <(sha256sum installer/Cryptomator-*.exe)
           echo "value=${CMD_OUTPUT[0]}" >> $GITHUB_OUTPUT
       - name: Add possible alpha/beta tags to installer name
-        run: mv installer/Cryptomator-Installer.exe Cryptomator-${{ needs.get-version.outputs.semVerStr }}-${{ matrix.executable-suffix }}.exe
+        run: mv installer/Cryptomator-Installer.exe "Cryptomator-${VERSION_NUM}${VERSION_SUFFIX}-${{ matrix.executable-suffix }}.exe"
       - name: Create detached GPG signature with key 615D449FE6E6A235
         run: |
           echo "${GPG_PRIVATE_KEY}" | gpg --batch --quiet --import
@@ -431,7 +447,7 @@ jobs:
 
   publish:
     name: Publish installers to the github release
-    if: github.ref_type == 'tag' && inputs.is-release
+    if: github.event_name == 'workflow_call'
     runs-on: ubuntu-latest
     needs: [ build-msi, build-exe ]
     steps:

@@ -5,10 +5,18 @@ on:
     - cron: '0 23 20 * *'
   workflow_call:
     inputs:
-      is-release:
-        description: "Workflow is called by a release"
-        type: boolean
-        default: false
+      semVerNum:
+        type: string
+        description: 'The Major.Minor.Patch part of the version'
+        required: true
+      revisionNum:
+        type: string
+        description: 'The revision number'
+        required: true
+      semVerSuffix:
+        type: string
+        description: 'The suffix of the version, including dash'
+        required: true
     outputs:
       sha256-appimage-x64:
         description: "SHA256 sum of the x64 appimage"
@@ -18,9 +26,16 @@ on:
         value: ${{ jobs.collect-sha256sums.outputs.aarch64-sha256sum}}
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version'
+      semVerNum:
+        description: 'The Major.Minor.Patch part of the version'
         required: false
+      revisionNum:
+        description: 'The revision number'
+        required: false
+      semVerSuffix:
+        description: 'The suffix of the version, including dash'
+        required: false
+        default: '-SNAPSHOT'
   push:
     branches-ignore:
       - 'dependabot/**'
@@ -33,21 +48,15 @@ on:
 env:
   JAVA_DIST: 'temurin'
   JAVA_VERSION: '25.0.2+10.0.LTS'
+  VERSION_NUM: ${{ inputs.semVerNum || '99.99.99'}}
+  REVISION_NUM: ${{ inputs.revisionNum || '0' }}
+  VERSION_SUFFIX: ${{ inputs.semVerSuffix || ''}}
+
 
 jobs:
-  get-version:
-    uses: ./.github/workflows/get-version.yml
-    with:
-      version: ${{ inputs.version }} #okay if not defined
-
   build:
     name: Build AppImage
     runs-on: ${{ matrix.os }}
-    needs: [get-version]
-    env:
-      SEMVER_STR: ${{ needs.get-version.outputs.semVerStr }}
-      SEMVER_NUM: ${{ needs.get-version.outputs.semVerNum }}
-      REV_NUM: ${{ needs.get-version.outputs.revNum }}
     strategy:
       fail-fast: false
       matrix:
@@ -92,7 +101,7 @@ jobs:
             exit 1
           fi
       - name: Set version
-        run : mvn versions:set -DnewVersion="$SEMVER_STR"
+        run : mvn versions:set -DnewVersion="${VERSION_NUM}${VERSION_SUFFIX}"
       - name: Run maven
         run: mvn -B clean package -Plinux -DskipTests
       - name: Patch target dir
@@ -135,12 +144,12 @@ jobs:
           --name Cryptomator
           --vendor "Skymatic GmbH"
           --copyright "(C) 2016 - 2025 Skymatic GmbH"
-          --app-version "${SEMVER_NUM}.${REV_NUM}"
+          --app-version "${VERSION_NUM}.${REVISION_NUM}"
           --java-options "--enable-preview"
           --java-options "--enable-native-access=javafx.graphics,org.cryptomator.jfuse.linux.amd64,org.cryptomator.jfuse.linux.aarch64,org.purejava.appindicator"
           --java-options "-Xss5m"
           --java-options "-Xmx256m"
-          --java-options "-Dcryptomator.appVersion=\"${SEMVER_STR}\""
+          --java-options "-Dcryptomator.appVersion=\"${VERSION_NUM}${VERSION_SUFFIX}\""
           --java-options "-Dfile.encoding=\"utf-8\""
           --java-options "-Djava.net.useSystemProxies=true"
           --java-options "-Dcryptomator.adminConfigPath=\"/etc/cryptomator/config.properties\""
@@ -151,7 +160,7 @@ jobs:
           --java-options "-Dcryptomator.mountPointsDir=\"@{userhome}/.local/share/Cryptomator/mnt\""
           --java-options "-Dcryptomator.showTrayIcon=true"
           --java-options "-Dcryptomator.integrationsLinux.trayIconsDir=\"@{appdir}/usr/share/icons/hicolor/symbolic/apps\""
-          --java-options "-Dcryptomator.buildNumber=\"appimage-${REV_NUM}\""
+          --java-options "-Dcryptomator.buildNumber=\"appimage-${REVISION_NUM}\""
           --java-options "-Dcryptomator.networking.truststore.p12Path=\"/etc/cryptomator/certs.p12\""
           --java-options "-Dcryptomator.hub.enableTrustOnFirstUse=true"
           --java-options "-XX:ErrorFile=/cryptomator/cryptomator_crash.log"
@@ -190,7 +199,7 @@ jobs:
           GPG_PASSPHRASE: ${{ secrets.RELEASES_GPG_PASSPHRASE }}
       - name: Build AppImage
         run: >
-          ./squashfs-root/AppRun Cryptomator.AppDir cryptomator-${SEMVER_STR}-${{ matrix.arch }}.AppImage
+          ./squashfs-root/AppRun Cryptomator.AppDir cryptomator-${VERSION_NUM}${VERSION_SUFFIX}-${{ matrix.arch }}.AppImage
           -u "gh-releases-zsync|cryptomator|cryptomator|latest|cryptomator-*-${{ matrix.arch }}.AppImage.zsync"
           --sign --sign-key=615D449FE6E6A235
       - name: Create detached GPG signatures
@@ -207,7 +216,7 @@ jobs:
             cryptomator-*.asc
           if-no-files-found: error
       - name: Publish AppImage on GitHub Releases
-        if: github.ref_type == 'tag' && inputs.is-release
+        if: github.event_name == 'workflow_call'
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
         with:
           draft: true
@@ -222,7 +231,7 @@ jobs:
     name: Collect AppImage checksums
     runs-on: ubuntu-latest
     needs: [build]
-    if: inputs.is-release
+    if: github.event_name == 'workflow_call'
     outputs:
       x64-sha256sum: ${{ steps.sha256sum.outputs.x64-sha256sum }}
       aarch64-sha256sum: ${{ steps.sha256sum.outputs.aarch64-sha256sum }}
