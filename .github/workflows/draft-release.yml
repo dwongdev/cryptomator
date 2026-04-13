@@ -69,31 +69,39 @@ jobs:
             cryptomator-*.tar.gz.asc
 
   build-exe-and-msi:
-    needs: create-release
+    needs: [get-version, create-release]
     uses: ./.github/workflows/win-exe.yml
     with:
-      is-release: true
+      semVerNum: ${{needs.get-version.outputs.semVerNum}}
+      revisionNum: ${{needs.get-version.outputs.revNum}}
+      semVerSuffix: ${{needs.get-version.outputs.semVerSuffix}}
     secrets: inherit
 
   build-dmg-arm64:
-    needs: create-release
+    needs: [get-version, create-release]
     uses: ./.github/workflows/mac-dmg.yml
     with:
-      is-release: true
+      semVerNum: ${{needs.get-version.outputs.semVerNum}}
+      revisionNum: ${{needs.get-version.outputs.revNum}}
+      semVerSuffix: ${{needs.get-version.outputs.semVerSuffix}}
     secrets: inherit
 
   build-dmg-x64:
-    needs: create-release
+    needs: [get-version, create-release]
     uses: ./.github/workflows/mac-dmg-x64.yml
     with:
-      is-release: true
+      semVerNum: ${{needs.get-version.outputs.semVerNum}}
+      revisionNum: ${{needs.get-version.outputs.revNum}}
+      semVerSuffix: ${{needs.get-version.outputs.semVerSuffix}}
     secrets: inherit
 
   build-appimages:
-    needs: create-release
+    needs: [get-version, create-release]
     uses: ./.github/workflows/appimage.yml
     with:
-      is-release: true
+      semVerNum: ${{needs.get-version.outputs.semVerNum}}
+      revisionNum: ${{needs.get-version.outputs.revNum}}
+      semVerSuffix: ${{needs.get-version.outputs.semVerSuffix}}
     secrets: inherit
 
   update-sha256sums:
