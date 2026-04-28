@@ -225,7 +225,7 @@
       <ns0:Custom Action="JpFindRelatedProducts" After="FindRelatedProducts"/>
     </ns0:InstallUISequence>
 
-    <ns0:WixVariable Id="WixUIBannerBmp" Value="$(env.JP_WIXWIZARD_RESOURCES)\banner.bmp" />
-    <ns0:WixVariable Id="WixUIDialogBmp" Value="$(env.JP_WIXWIZARD_RESOURCES)\background.bmp" />
+    <ns0:WixVariable Id="WixUIBannerBmp" Value="$(env.JP_WIXWIZARD_RESOURCES)banner.bmp" />
+    <ns0:WixVariable Id="WixUIDialogBmp" Value="$(env.JP_WIXWIZARD_RESOURCES)background.bmp" />
   </ns0:Package>
 </ns0:Wix>

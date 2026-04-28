@@ -227,8 +227,14 @@ attrib -r "$AppName\$AppName.exe"
 attrib -r "$AppName\${AppName} (Debug).exe"
 
 # create .msi
-$Env:JP_WIXWIZARD_RESOURCES = "$buildDir\resources"
-$Env:JP_WIXHELPER_DIR = "."
+$Env:JP_WIXWIZARD_RESOURCES = "$buildDir\resources\"
+$Env:JP_WIXWIZARD_RESOURCES_PROPERTIES_FORMAT = "${Env:JP_WIXWIZARD_RESOURCES}".Replace('\', '\\');
+$Env:JP_WIXHELPER_DIR = ""
+
+Get-Content .\resources\FAvaultFile.template.properties `
+    | ForEach-Object { $ExecutionContext.InvokeCommand.ExpandString($_) } `
+    | Out-File -FilePath .\resources\FAvaultFile.properties
+
 Invoke-CommandWithExitCheck -Command `
     "$Env:JAVA_HOME\bin\jpackage" -Arguments @(
     "--verbose",
