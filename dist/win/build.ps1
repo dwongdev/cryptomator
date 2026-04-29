@@ -231,7 +231,7 @@ $Env:JP_WIXWIZARD_RESOURCES = "$buildDir\resources\"
 $Env:JP_WIXWIZARD_RESOURCES_PROPERTIES_FORMAT = "${Env:JP_WIXWIZARD_RESOURCES}".Replace('\', '\\');
 $Env:JP_WIXHELPER_DIR = ""
 
-Get-Content .\resources\FAvaultFile.template.properties `
+Get-Content .\resources\FAvaultFile.template.properties ` # Similar to envsubst
     | ForEach-Object { $ExecutionContext.InvokeCommand.ExpandString($_) } `
     | Out-File -FilePath .\resources\FAvaultFile.properties
 

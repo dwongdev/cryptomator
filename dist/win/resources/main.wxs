@@ -68,7 +68,7 @@
     <?endif?>
 
     <!-- TODO: how does this work again? -->
-    <ns0:Binary Id="JpCaDll" SourceFile="$(env.JP_WIXHELPER_DIR)\wixhelper.dll" />
+    <ns0:Binary Id="JpCaDll" SourceFile="$(env.JP_WIXHELPER_DIR)msica.dll"></ns0:Binary>
     <ns0:CustomAction Id="JpFindRelatedProducts" BinaryRef="JpCaDll" DllEntry="FindRelatedProductsEx" />
 
     <?ifndef SkipCryptomatorLegacyCheck ?>

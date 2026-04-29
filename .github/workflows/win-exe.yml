@@ -220,12 +220,10 @@ jobs:
               }
               $jar.Dispose()
           }
-      - name: Extract wixhelper.dll for Codesigning #see https://github.com/cryptomator/cryptomator/issues/3130
-        shell: pwsh
+      - name: Get msi helper dll for code signing
         run: |
-          New-Item -Path appdir/jpackage-jmod -ItemType Directory
-          & $env:JAVA_HOME\bin\jmod.exe extract --dir jpackage-jmod "${env:JAVA_HOME}\jmods\jdk.jpackage.jmod"
-          Get-ChildItem -Recurse -Path "jpackage-jmod" -File wixhelper.dll | Select-Object -Last 1 | Copy-Item -Destination "appdir"
+          ${JAVA_HOME}/bin/jpackage --type msi --win-upgrade-uuid bda45523-42b1-4cae-9354-a45475ed4775 --app-image appdir/Cryptomator --dest /tmp/ --name Test --vendor Test --copyright "None" --app-version "1.0" --temp msi-helper
+          find ./msi-helper/ -type f -name msica.dll -exec mv {} ./appdir \;
       - name: Sign DLLs with Azure Trusted Signing
         if: inputs.sign || github.event_name == 'schedule'
         uses: ./.github/actions/win-sign-action
@@ -282,8 +280,8 @@ jobs:
           --license-file dist/win/resources/license.rtf
           --file-associations dist/win/resources/FAvaultFile.properties
         env:
-          JP_WIXWIZARD_RESOURCES: ${{ github.workspace }}/dist/win/resources # requires abs path, used in resources/main.wxs
-          JP_WIXHELPER_DIR: ${{ github.workspace }}\appdir
+          JP_WIXWIZARD_RESOURCES: ${{ github.workspace }}/dist/win/resources/ # requires abs path, used in resources/main.wxs
+          JP_WIXHELPER_DIR: ${{ github.workspace }}\appdir\
       - name: Sign MSI with Azure Trusted Signing
         if: inputs.sign || github.event_name == 'schedule'
         uses: ./.github/actions/win-sign-action
