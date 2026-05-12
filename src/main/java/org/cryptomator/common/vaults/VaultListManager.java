@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import javafx.application.Platform;
 import javafx.collections.ObservableList;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -71,6 +72,10 @@ public class VaultListManager {
 		return vaultList.stream().anyMatch(v -> vaultPath.equals(v.getPath()));
 	}
 
+	/**
+	 * Safe to call from any thread: the IO work runs on the calling thread, but the
+	 * {@code ObservableList} mutation is marshaled to the JavaFX application thread.
+	 */
 	public Vault add(Path pathToVault) throws IOException {
 		Path normalizedPathToVault = pathToVault.normalize().toAbsolutePath();
 		assertIsVaultDirectory(normalizedPathToVault);
@@ -78,7 +83,11 @@ public class VaultListManager {
 		return get(normalizedPathToVault) //
 				.orElseGet(() -> {
 					Vault newVault = create(newVaultSettings(normalizedPathToVault));
-					vaultList.add(newVault);
+					if (Platform.isFxApplicationThread()) {
+						vaultList.add(newVault);
+					} else {
+						Platform.runLater(() -> vaultList.add(newVault));
+					}
 					return newVault;
 				});
 	}
