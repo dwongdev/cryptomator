@@ -5,48 +5,46 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 
 import static org.cryptomator.common.Constants.MASTERKEY_FILENAME;
 import static org.cryptomator.common.Constants.VAULTCONFIG_FILENAME;
 import static org.cryptomator.cryptofs.common.Constants.DATA_DIR_NAME;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class VaultListManagerTest {
 
 	@Test
 	void testAssertIsVaultDirectoryWhenDataDirIsMissing(@TempDir Path tmpDir) {
-		NoSuchFileException e = assertThrows(NoSuchFileException.class, () -> {
+		NotAVaultDirectoryException e = assertThrows(NotAVaultDirectoryException.class, () -> {
 			VaultListManager.assertIsVaultDirectory(tmpDir);
 		});
 
-		assertTrue(e.getReason().contains(DATA_DIR_NAME + " directory is missing"));
+		assertEquals(NotAVaultDirectoryException.Reason.MISSING_DATA_DIR, e.notAVaultReason());
 	}
 
 	@Test
 	void testAssertIsVaultDirectoryWhenDataDirIsFile(@TempDir Path tmpDir) throws IOException {
 		Files.createFile(tmpDir.resolve(DATA_DIR_NAME));
 
-		NoSuchFileException e = assertThrows(NoSuchFileException.class, () -> {
+		NotAVaultDirectoryException e = assertThrows(NotAVaultDirectoryException.class, () -> {
 			VaultListManager.assertIsVaultDirectory(tmpDir);
 		});
 
-		assertTrue(e.getReason().contains(DATA_DIR_NAME + " is not a directory"));
+		assertEquals(NotAVaultDirectoryException.Reason.DATA_NOT_A_DIRECTORY, e.notAVaultReason());
 	}
 
 	@Test
 	void testAssertIsVaultDirectoryWhenVaultConfigAndMasterkeyAreMissing(@TempDir Path tmpDir) throws IOException {
 		Files.createDirectory(tmpDir.resolve(DATA_DIR_NAME));
 
-		NoSuchFileException e = assertThrows(NoSuchFileException.class, () -> {
+		NotAVaultDirectoryException e = assertThrows(NotAVaultDirectoryException.class, () -> {
 			VaultListManager.assertIsVaultDirectory(tmpDir);
 		});
 
-		assertTrue(e.getReason().contains(VAULTCONFIG_FILENAME + " is missing"));
-		assertTrue(e.getReason().contains(MASTERKEY_FILENAME + " is missing"));
+		assertEquals(NotAVaultDirectoryException.Reason.MISSING_VAULT_CONFIG, e.notAVaultReason());
 	}
 
 	@Test

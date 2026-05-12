@@ -25,11 +25,9 @@ import javax.inject.Singleton;
 import javafx.collections.ObservableList;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.ResourceBundle;
 
@@ -85,40 +83,28 @@ public class VaultListManager {
 				});
 	}
 
-	static void assertIsVaultDirectory(Path pathToVault) throws IOException {
+	public static void assertIsVaultDirectory(Path pathToVault) throws IOException {
 		if (CryptoFileSystemProvider.checkDirStructureForVault(pathToVault, VAULTCONFIG_FILENAME, MASTERKEY_FILENAME) == DirStructure.UNRELATED) {
-			throw new NoSuchFileException(pathToVault.toString(), null, "Not a vault directory: " + determineNotVaultDirectoryReason(pathToVault));
-		}
-	}
+			Path dataDir = pathToVault.resolve(DATA_DIR_NAME);
+			if (!Files.isDirectory(dataDir)) {
+				if (Files.exists(dataDir)) {
+					throw new NotAVaultDirectoryException(pathToVault, NotAVaultDirectoryException.Reason.DATA_NOT_A_DIRECTORY);
+				} else {
+					throw new NotAVaultDirectoryException(pathToVault, NotAVaultDirectoryException.Reason.MISSING_DATA_DIR);
+				}
+			}
 
-	private static String determineNotVaultDirectoryReason(Path pathToVault) {
-		Path dataDir = pathToVault.resolve(DATA_DIR_NAME);
-		if (!Files.isDirectory(dataDir)) {
-			return describeNotDirectory(dataDir);
-		}
+			Path vaultConfig = pathToVault.resolve(VAULTCONFIG_FILENAME);
+			if (!Files.isReadable(vaultConfig)) {
+				if (Files.exists(vaultConfig)) {
+					throw new NotAVaultDirectoryException(pathToVault, NotAVaultDirectoryException.Reason.VAULT_CONFIG_ACCESS_DENIED);
+				} else {
+					throw new NotAVaultDirectoryException(pathToVault, NotAVaultDirectoryException.Reason.MISSING_VAULT_CONFIG);
+				}
+			}
 
-		Path vaultConfig = pathToVault.resolve(VAULTCONFIG_FILENAME);
-		if (!Files.isReadable(vaultConfig)) {
-			Path masterkey = pathToVault.resolve(MASTERKEY_FILENAME);
-			return describeNotReadable(vaultConfig) + "; " + describeNotReadable(masterkey) + " for legacy vault detection";
-		}
-
-		return "directory structure is unsupported";
-	}
-
-	private static String describeNotDirectory(Path path) {
-		if (Files.exists(path)) {
-			return path.getFileName() + " is not a directory";
-		} else {
-			return path.getFileName() + " directory is missing";
-		}
-	}
-
-	private static String describeNotReadable(Path path) {
-		if (Files.exists(path)) {
-			return path.getFileName() + " is not readable";
-		} else {
-			return path.getFileName() + " is missing";
+			//if vault is legacy _and_ not readable, just say unsupported
+			throw new NotAVaultDirectoryException(pathToVault, NotAVaultDirectoryException.Reason.UNSUPPORTED_STRUCTURE);
 		}
 	}
 
@@ -189,7 +175,7 @@ public class VaultListManager {
 				//for legacy reasons: pre v8 vault do not have a config, but they are in the NEEDS_MIGRATION state
 				vaultSettings.lastKnownKeyLoader.set(MasterkeyFileLoadingStrategy.SCHEME);
 			}
-			case VAULT_CONFIG_MISSING ->  {
+			case VAULT_CONFIG_MISSING -> {
 				//Nothing to do here, since there is no config to read
 			}
 			case MISSING, ALL_MISSING, ERROR, PROCESSING -> {
