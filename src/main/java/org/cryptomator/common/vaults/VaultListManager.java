@@ -25,8 +25,10 @@ import javax.inject.Singleton;
 import javafx.application.Platform;
 import javafx.collections.ObservableList;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -34,7 +36,14 @@ import java.util.ResourceBundle;
 
 import static org.cryptomator.common.Constants.MASTERKEY_FILENAME;
 import static org.cryptomator.common.Constants.VAULTCONFIG_FILENAME;
-import static org.cryptomator.common.vaults.VaultState.Value.*;
+import static org.cryptomator.common.vaults.VaultState.Value.ALL_MISSING;
+import static org.cryptomator.common.vaults.VaultState.Value.ERROR;
+import static org.cryptomator.common.vaults.VaultState.Value.LOCKED;
+import static org.cryptomator.common.vaults.VaultState.Value.MISSING;
+import static org.cryptomator.common.vaults.VaultState.Value.NEEDS_MIGRATION;
+import static org.cryptomator.common.vaults.VaultState.Value.PROCESSING;
+import static org.cryptomator.common.vaults.VaultState.Value.UNLOCKED;
+import static org.cryptomator.common.vaults.VaultState.Value.VAULT_CONFIG_MISSING;
 import static org.cryptomator.cryptofs.common.Constants.DATA_DIR_NAME;
 
 @Singleton
@@ -94,26 +103,33 @@ public class VaultListManager {
 
 	public static void assertIsVaultDirectory(Path pathToVault) throws IOException {
 		if (CryptoFileSystemProvider.checkDirStructureForVault(pathToVault, VAULTCONFIG_FILENAME, MASTERKEY_FILENAME) == DirStructure.UNRELATED) {
-			Path dataDir = pathToVault.resolve(DATA_DIR_NAME);
-			if (!Files.isDirectory(dataDir)) {
-				if (Files.exists(dataDir)) {
-					throw new NotAVaultDirectoryException(pathToVault, NotAVaultDirectoryException.Reason.DATA_NOT_A_DIRECTORY);
-				} else {
-					throw new NotAVaultDirectoryException(pathToVault, NotAVaultDirectoryException.Reason.MISSING_DATA_DIR);
-				}
-			}
-
-			Path vaultConfig = pathToVault.resolve(VAULTCONFIG_FILENAME);
-			if (!Files.isReadable(vaultConfig)) {
-				if (Files.exists(vaultConfig)) {
-					throw new NotAVaultDirectoryException(pathToVault, NotAVaultDirectoryException.Reason.VAULT_CONFIG_ACCESS_DENIED);
-				} else {
-					throw new NotAVaultDirectoryException(pathToVault, NotAVaultDirectoryException.Reason.MISSING_VAULT_CONFIG);
-				}
-			}
-
+			checkDataDir(pathToVault);
+			checkConfigFile(pathToVault);
 			//if vault is legacy _and_ not readable, just say unsupported
 			throw new NotAVaultDirectoryException(pathToVault, NotAVaultDirectoryException.Reason.UNSUPPORTED_STRUCTURE);
+		}
+	}
+
+	static void checkDataDir(Path pathToVault) throws NotAVaultDirectoryException {
+		Path dataDir = pathToVault.resolve(DATA_DIR_NAME);
+		if (!Files.exists(dataDir)) {
+			throw new NotAVaultDirectoryException(pathToVault, NotAVaultDirectoryException.Reason.MISSING_DATA_DIR);
+		}
+		if (!Files.isDirectory(dataDir)) {
+			throw new NotAVaultDirectoryException(pathToVault, NotAVaultDirectoryException.Reason.DATA_NOT_A_DIRECTORY);
+		}
+	}
+
+	static void checkConfigFile(Path pathToVault) throws NotAVaultDirectoryException {
+		Path vaultConfig = pathToVault.resolve(VAULTCONFIG_FILENAME);
+		if (!Files.exists(vaultConfig)) {
+			throw new NotAVaultDirectoryException(pathToVault, NotAVaultDirectoryException.Reason.MISSING_VAULT_CONFIG);
+		}
+		try (var ch = Files.newByteChannel(vaultConfig, StandardOpenOption.READ)){
+			ch.read(ByteBuffer.allocate(1));
+		} catch (IOException e) {
+			LOG.warn("Failed to read vault config: {}", e.getMessage());
+			throw new NotAVaultDirectoryException(pathToVault, NotAVaultDirectoryException.Reason.VAULT_CONFIG_ACCESS_DENIED);
 		}
 	}
 
