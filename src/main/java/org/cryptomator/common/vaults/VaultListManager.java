@@ -89,16 +89,15 @@ public class VaultListManager {
 		Path normalizedPathToVault = pathToVault.normalize().toAbsolutePath();
 		assertIsVaultDirectory(normalizedPathToVault);
 
-		return get(normalizedPathToVault) //
-				.orElseGet(() -> {
-					Vault newVault = create(newVaultSettings(normalizedPathToVault));
-					if (Platform.isFxApplicationThread()) {
-						vaultList.add(newVault);
-					} else {
-						Platform.runLater(() -> vaultList.add(newVault));
-					}
-					return newVault;
-				});
+		return get(normalizedPathToVault).orElseGet(() -> {
+			Vault newVault = create(newVaultSettings(normalizedPathToVault));
+			if (Platform.isFxApplicationThread()) {
+				addVault(newVault);
+			} else {
+				Platform.runLater(() -> addVault(newVault));
+			}
+			return newVault;
+		});
 	}
 
 	public static void assertIsVaultDirectory(Path pathToVault) throws IOException {
