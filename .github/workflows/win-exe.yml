@@ -83,7 +83,7 @@ jobs:
           - arch: x64
             os: windows-latest
             java-dist: 'zulu' #cannot use temurin, see https://github.com/cryptomator/cryptomator/issues/3824#issuecomment-2829827427
-            java-version: '25.0.1+8'
+            java-version: '26.0.1+8'
             java-package: 'jdk'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -220,12 +220,10 @@ jobs:
               }
               $jar.Dispose()
           }
-      - name: Extract wixhelper.dll for Codesigning #see https://github.com/cryptomator/cryptomator/issues/3130
-        shell: pwsh
+      - name: Get msi helper dll for code signing
         run: |
-          New-Item -Path appdir/jpackage-jmod -ItemType Directory
-          & $env:JAVA_HOME\bin\jmod.exe extract --dir jpackage-jmod "${env:JAVA_HOME}\jmods\jdk.jpackage.jmod"
-          Get-ChildItem -Recurse -Path "jpackage-jmod" -File wixhelper.dll | Select-Object -Last 1 | Copy-Item -Destination "appdir"
+          ${JAVA_HOME}/bin/jpackage --type msi --win-upgrade-uuid bda45523-42b1-4cae-9354-a45475ed4775 --app-image appdir/Cryptomator --dest /tmp/ --name Test --vendor Test --copyright "None" --app-version "1.0" --temp msi-helper
+          find ./msi-helper/ -type f -name msica.dll -exec mv {} ./appdir \;
       - name: Sign DLLs with Azure Trusted Signing
         if: inputs.sign || github.event_name == 'schedule'
         uses: ./.github/actions/win-sign-action
@@ -261,6 +259,16 @@ jobs:
           "-Dlicense.failOnMissing=true"
           "-Dlicense.licenseMergesUrl=file:///${{ github.workspace }}/license/merges"
         shell: pwsh
+      - name: Create file association file from template
+        working-directory: dist/win
+        run: |
+          $Env:JP_WIXWIZARD_RESOURCES_PROPERTIES_FORMAT = "${Env:JP_WIXWIZARD_RESOURCES}".Replace('\', '\\');
+          Get-Content .\resources\FAvaultFile.template.properties `
+            | ForEach-Object { $ExecutionContext.InvokeCommand.ExpandString($_) } `
+            | Out-File -FilePath .\resources\FAvaultFile.properties
+        env:
+          JP_WIXWIZARD_RESOURCES: ${{ github.workspace }}/dist/win/resources/ # requires abs path, used in resources/main.wxs
+        shell: pwsh
       - name: Create MSI
         run: >
           ${JAVA_HOME}/bin/jpackage
@@ -276,14 +284,14 @@ jobs:
           --win-menu
           --win-dir-chooser
           --win-shortcut-prompt
-          --win-update-url "https:\\cryptomator.org\downloads"
+          --win-update-url "https://cryptomator.org/downloads"
           --win-menu-group Cryptomator
           --resource-dir dist/win/resources
           --license-file dist/win/resources/license.rtf
           --file-associations dist/win/resources/FAvaultFile.properties
         env:
-          JP_WIXWIZARD_RESOURCES: ${{ github.workspace }}/dist/win/resources # requires abs path, used in resources/main.wxs
-          JP_WIXHELPER_DIR: ${{ github.workspace }}\appdir
+          JP_WIXWIZARD_RESOURCES: ${{ github.workspace }}/dist/win/resources/ # requires abs path, used in resources/main.wxs
+          JP_WIXHELPER_DIR: ${{ github.workspace }}\appdir\
       - name: Sign MSI with Azure Trusted Signing
         if: inputs.sign || github.event_name == 'schedule'
         uses: ./.github/actions/win-sign-action
