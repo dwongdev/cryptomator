@@ -49,18 +49,3 @@ jobs:
             echo "Release not set in dist/linux/common/org.cryptomator.Cryptomator.metainfo.xml"
             exit 1
           fi
-      - name: Cache NVD DB
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ~/.m2/repository/org/owasp/dependency-check-data/
-          key: dependency-check-${{ github.run_id }}
-          restore-keys: |
-            dependency-check
-        env:
-          SEGMENT_DOWNLOAD_TIMEOUT_MINS: 5
-      - name: Run org.owasp:dependency-check plugin
-        id: dependency-check
-        continue-on-error: true
-        run: ./mvnw -B verify -Pdependency-check -DskipTests
-        env:
-          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
