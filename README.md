@@ -26,6 +26,7 @@ Become our Gold Sponsor and showcase your brand to a targeted audience! Please c
     <tr>
       <td><a href="https://www.gee-whiz.de/"><img src="https://cryptomator.org/img/sponsors/geewhiz.svg" alt="gee-whiz" height="56"></a></td>
       <td><a href="https://www.route4me.com/"><img src="https://cryptomator.org/img/sponsors/route4me.svg" alt="Route4Me" height="56"></a></td>
+      <td><a href="https://www.apivoid.com/"><img src="https://cryptomator.org/img/sponsors/apivoid.svg" alt="ApiVoid" height="56"></a></td>
     </tr>
   </tbody>
 </table>
